@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  nanobot-darwin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nanobot-darwin
+    volumes:
+      - ./config:/app/config
+      - ./storage:/app/storage
+      - ./memory:/app/memory
+    environment:
+      - GIN_MODE=release
+    ports:
+      - "8080:8080"
+    restart: unless-stopped

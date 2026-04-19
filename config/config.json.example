@@ -1,0 +1,59 @@
+{
+  "app": {
+    "name": "PHP-Nanobot",
+    "debug": true
+  },
+  "llm": {
+    "default_provider": "zhipu",
+    "providers": {
+      "ollama": {
+        "driver": "ollama",
+        "base_url": "http://localhost:11434",
+        "model": "qwen:7b"
+      },
+      "zhipu": {
+        "driver": "zhipu",
+        "base_url": "https://open.bigmodel.cn/",
+        "model": "glm-4.5-air",
+        "api_key": "YOUR_ZHIPU_API_KEY_HERE"
+      },
+      "longcat": {
+        "driver": "longcat",
+         "base_url": "https://api.longcat.chat/openai/",
+        "model": "LongCat-Flash-Chat",
+        "api_key": "YOUR_LONGCAT_API_KEY_HERE"
+      },
+      "openai": {
+        "driver": "openai",
+        "base_url": "https://api.longcat.chat/openai/v1/",
+        "model": "LongCat-Flash-Chat",
+        "api_key": "YOUR_OPENAI_API_KEY_HERE"
+      }
+    }
+  },
+  "cache": {
+    "context_cache": {
+      "max_memory_entries": 500,
+      "ttl_seconds": 7200,
+      "file_fallback_enabled": true,
+      "cache_directory": "storage/cache/context"
+    }
+  },
+  "agent": {
+    "max_context_size": 20,
+    "enable_animations": true,
+    "log_level": "info"
+  },
+  "channels": {
+    "dingtalk": {
+      "enabled": false,
+      "app_key": "YOUR_DINGTALK_APP_KEY",
+      "app_secret": "YOUR_DINGTALK_APP_SECRET",
+      "webhook_url": "YOUR_DINGTALK_WEBHOOK_URL"
+    }
+  },
+  "permissions": {
+    "mode": "default",
+    "description": "default: 需要确认所有写操作, plan: 只读, auto: 自动"
+  }
+}

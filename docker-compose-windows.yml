@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  nanobot-windows:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nanobot-windows
+    volumes:
+      - D:/code:/app/code
+      - ./config:/app/config
+      - ./storage:/app/storage
+      - ./memory:/app/memory
+    environment:
+      - GIN_MODE=release
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    working_dir: /app
