@@ -47,6 +47,10 @@ func (a *ZhipuAdapter) Chat(messages *[]Message, tools []ToolDefinition) (Respon
 	if len(tools) > 0 {
 		payload["tools"] = tools
 	}
+	//sleep 2 seconds to avoid rate limit
+	time.Sleep(2 * time.Second)
+	//输出当前时间,到毫秒
+	fmt.Printf("⏰ %s - 正在调用智谱 API...\n", time.Now().Format("2006-01-02 15:04:05.000"))
 
 	resp, err := a.client.R().
 		SetHeader("Authorization", "Bearer "+a.apiKey).

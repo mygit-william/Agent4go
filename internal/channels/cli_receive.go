@@ -21,8 +21,9 @@ func (c *CLIChannel) Receive() {
 	green := color.New(color.FgGreen)
 	yellow := color.New(color.FgYellow)
 
-	cyan.Println("🤖 Nanobot-Go 已启动 (CLI模式)")
-	fmt.Println("输入 'exit' 退出, 'help' 查看帮助\n")
+	cyan.Println("Nanobot CLI")
+	fmt.Println("输入任务开始执行，或使用: help | clear | exit")
+	fmt.Println()
 
 	// 构建系统提示词
 	messages := c.buildSystemPrompt()
@@ -30,26 +31,27 @@ func (c *CLIChannel) Receive() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		green.Print(" > ")
+		green.Print("› ")
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
 		if input == "exit" {
-			yellow.Println("👋 再见！")
+			yellow.Println("会话已结束。")
 			break
 		}
 
 		if input == "" {
-			fmt.Println("💡 提示: 输入内容开始对话, 'help' 查看命令, 'exit' 退出")
+			fmt.Println("提示: 输入任务内容，或使用 help/exit。")
 			continue
 		}
 
 		if input == "help" {
-			fmt.Println("📋 可用命令:")
-			fmt.Println("  • help  - 显示此帮助")
-			fmt.Println("  • exit  - 退出程序")
+			fmt.Println("可用命令:")
+			fmt.Println("  • help  - 显示帮助")
 			fmt.Println("  • clear - 清屏")
-			fmt.Println("  • 输入任意内容开始AI对话\n")
+			fmt.Println("  • exit  - 退出")
+			fmt.Println("  • 其他输入会作为任务交给 Agent")
+			fmt.Println()
 			continue
 		}
 
@@ -65,7 +67,7 @@ func (c *CLIChannel) Receive() {
 
 		// 调用 Agent
 		reply := c.agent.Chat("cli_user", input, &messages)
-		cyan.Printf("🤖 : %s\n", strings.TrimSpace(reply))
+		cyan.Printf("\n助手回复:\n%s\n\n", strings.TrimSpace(reply))
 	}
 }
 

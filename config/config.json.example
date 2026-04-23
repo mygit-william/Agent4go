@@ -41,6 +41,9 @@
   },
   "agent": {
     "max_context_size": 20,
+    "max_tokens": 8000,
+    "reserved_tokens": 2000,
+    "summary_enabled": true,
     "enable_animations": true,
     "log_level": "info"
   },

@@ -43,7 +43,7 @@ go run cmd/nanobot/main.go -mode serve
 
 ```bash
 # 编译 CLI 版本
-go build -o nanobot.exe cmd/nanobot/main.go
+go build -ldflags="-s -w" -o nanobot.exe cmd/nanobot/main.go && ./nanobot.exe
 
 # 编译服务版本
 go build -o nanobot-server.exe cmd/nanobot/main.go
@@ -61,7 +61,15 @@ GOOS=darwin GOARCH=amd64 go build -o nanobot cmd/nanobot/main.go
 
 ## 配置
 
-编辑 `config/config.json` 设置 LLM API 密钥。
+程序读取配置文件顺序如下：
+
+1. 可执行文件目录下的 `config/config.json`
+
+也可通过参数手动指定：
+
+```bash
+./nanobot.exe -config ./my-config.json
+```
 
 ## 从 PHP 版本迁移
 

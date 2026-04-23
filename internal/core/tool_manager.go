@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-
+	// "time"
 	"github.com/fatih/color"
 
 	"github.com/mygit-william/nanobot-go/internal/llm"
@@ -72,9 +72,15 @@ func (tm *ToolManager) Run(toolName string, arguments string) string {
 
 	// 显示开始动画 - 显示工具名和关键参数
 	detail := extractToolDetail(toolName, args)
-	loading := utils.NewLoadingAnimation(fmt.Sprintf("执行 %s %s", toolName, detail))
+	actionLine := fmt.Sprintf("工具 %s", toolName)
+	if detail != "" {
+		actionLine = fmt.Sprintf("%s (%s)", actionLine, detail)
+	}
+	fmt.Printf("│     ├─ 调用: %s\n", actionLine)
+	loading := utils.NewLoadingAnimation("处理中")
 	loading.Start()
-
+	//sleep 3 seconds
+	// time.Sleep(10 * time.Second)
 	// 执行工具
 	result := tool.Execute(args)
 
@@ -82,7 +88,13 @@ func (tm *ToolManager) Run(toolName string, arguments string) string {
 	success := !strings.HasPrefix(result, "错误")
 
 	// 停止动画并显示结果摘要
-	loading.StopWithResult(success, result)
+	loading.Stop()
+	if !success {
+		fmt.Println("│     └─ 状态: 失败")
+	} else {
+		fmt.Println("│     └─ 状态: 完成")
+	}
+	printToolResultSummary(toolName, args, result)
 
 	return result
 }
@@ -150,4 +162,123 @@ func mapOperation(op string) string {
 	default:
 		return op
 	}
+}
+
+func printToolResultSummary(toolName string, args map[string]interface{}, result string) {
+	trimmed := strings.TrimSpace(result)
+	if trimmed == "" {
+		fmt.Println("│        结果: 空输出")
+		return
+	}
+
+	switch toolName {
+	case "read_file":
+		printReadFileSummary(args, trimmed)
+	case "write_file", "edit_file":
+		printWriteLikeSummary(args, trimmed)
+	case "bash":
+		printBashSummary(args, trimmed)
+	default:
+		printGenericSummary(trimmed)
+	}
+}
+
+func printReadFileSummary(args map[string]interface{}, result string) {
+	path, _ := args["path"].(string)
+	lines := strings.Split(result, "\n")
+	fmt.Printf("│        已读取: %s\n", path)
+	fmt.Printf("│        行数: %d\n", len(lines))
+
+	previewCount := minInt(5, len(lines))
+	if previewCount == 0 {
+		fmt.Println("│        预览: (空文件)")
+		return
+	}
+	fmt.Println("│        预览:")
+	for i := 0; i < previewCount; i++ {
+		fmt.Printf("│          %s\n", lines[i])
+	}
+	if len(lines) > previewCount {
+		fmt.Printf("│          ... (还有 %d 行)\n", len(lines)-previewCount)
+	}
+}
+
+func printWriteLikeSummary(args map[string]interface{}, result string) {
+	path, _ := args["path"].(string)
+	fmt.Printf("│        目标文件: %s\n", path)
+
+	content := ""
+	if c, ok := args["content"].(string); ok {
+		content = c
+	} else if c, ok := args["new_content"].(string); ok {
+		content = c
+	}
+
+	content = strings.TrimSpace(content)
+	if content == "" {
+		fmt.Printf("│        执行结果: %s\n", firstLine(result))
+		return
+	}
+
+	lines := strings.Split(content, "\n")
+	previewCount := minInt(4, len(lines))
+	fmt.Printf("│        写入内容预览 (%d 行):\n", len(lines))
+	for i := 0; i < previewCount; i++ {
+		fmt.Printf("│          %s\n", lines[i])
+	}
+	if len(lines) > previewCount {
+		fmt.Printf("│          ... (还有 %d 行)\n", len(lines)-previewCount)
+	}
+	fmt.Printf("│        执行结果: %s\n", firstLine(result))
+}
+
+func printBashSummary(args map[string]interface{}, result string) {
+	command, _ := args["command"].(string)
+	fmt.Printf("│        命令: %s\n", cleanCommand(command))
+
+	lines := strings.Split(result, "\n")
+	previewCount := minInt(8, len(lines))
+	if strings.TrimSpace(result) == "" || (len(lines) == 1 && strings.TrimSpace(lines[0]) == "") {
+		fmt.Println("│        输出: (无输出)")
+		return
+	}
+	fmt.Println("│        输出预览:")
+	for i := 0; i < previewCount; i++ {
+		if strings.TrimSpace(lines[i]) == "" {
+			continue
+		}
+		fmt.Printf("│          %s\n", lines[i])
+	}
+	if len(lines) > previewCount {
+		fmt.Printf("│          ... (还有 %d 行)\n", len(lines)-previewCount)
+	}
+}
+
+func printGenericSummary(result string) {
+	lines := strings.Split(result, "\n")
+	display := firstLine(result)
+	if len(display) > 120 {
+		display = display[:120] + "..."
+	}
+	if len(lines) > 1 {
+		fmt.Printf("│        结果: %s (另有 %d 行)\n", display, len(lines)-1)
+		return
+	}
+	fmt.Printf("│        结果: %s\n", display)
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	lines := strings.Split(s, "\n")
+	return strings.TrimSpace(lines[0])
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

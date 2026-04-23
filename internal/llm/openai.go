@@ -40,24 +40,34 @@ func (a *OpenAIAdapter) Chat(messages *[]Message, tools []ToolDefinition) (Respo
 	if len(*messages) == 0 {
 		return Response{}, fmt.Errorf("messages 不能为空")
 	}
-
 	payload := map[string]interface{}{
-		"model":      a.model,
-		"messages":   *messages,
-		"stream":     false,
+		"model":       a.model,
+		"messages":    *messages,
+		"stream":      false,
 		"temperature": 0.7,
 	}
+	
+	
+
 
 	if len(tools) > 0 {
 		payload["tools"] = tools
 	}
-
+	// 记录请求日志d
+	reqJSON, _ := json.MarshalIndent(payload, "", "  ")
+	fmt.Printf("⏰ %s - [OpenAI] 请求:\n%s\n", time.Now().Format("2006-01-02 15:04:05.000"), reqJSON)
+	//输出payload
+	payloadJSON, _ := json.MarshalIndent(payload, "", "  ")
+	fmt.Printf("⏰ %s - [OpenAI] 请求 Payload:\n%s\n", time.Now().Format("2006-01-02 15:04:05.000"), payloadJSON)
 	resp, err := a.client.R().
 		SetHeader("Authorization", "Bearer "+a.apiKey).
 		SetHeader("Content-Type", "application/json").
 		SetBody(payload).
 		Post(a.baseURL + "/chat/completions")
-
+	//输出响应日志
+	if resp != nil {
+		fmt.Printf("⏰ %s - [OpenAI] 响应: HTTP %d\n%s\n", time.Now().Format("2006-01-02 15:04:05.000"), resp.StatusCode(), string(resp.Body()))
+	}
 	if err != nil {
 		return Response{}, fmt.Errorf("请求失败: %v", err)
 	}

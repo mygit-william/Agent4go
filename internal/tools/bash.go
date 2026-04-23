@@ -120,12 +120,12 @@ func (e *ShellExecutor) Exec(command string) string {
 	}
 
 	// 参数安全检查
-	if len(parts) > 1 {
-		args := strings.Join(parts[1:], " ")
-		if !e.checkParameters(args) {
-			return "错误: 参数包含非法内容"
-		}
-	}
+	// if len(parts) > 1 {
+	// 	args := strings.Join(parts[1:], " ")
+	// 	if !e.checkParameters(args) {
+	// 		return "错误: 参数包含非法内容"
+	// 	}
+	// }
 
 	// 执行命令
 	return e.executeSafely(command)

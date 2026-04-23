@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	MaxExecutionSteps     = 20
+	MaxExecutionSteps     = 1000
 	MaxConversationRounds = 20
 	MaxLongTermMemories   = 50
 )

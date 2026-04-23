@@ -37,9 +37,19 @@ func (l *LoadingAnimation) Start() {
 	go func() {
 		defer close(l.done)
 
-		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-		i := 0
-		cyan := color.New(color.FgCyan)
+		base := color.New(color.FgHiBlack)
+		soft := color.New(color.FgCyan)
+		mid := color.New(color.FgHiCyan, color.Bold)
+		shine := color.New(color.FgHiWhite, color.Bold)
+		runes := []rune(l.message)
+		if len(runes) == 0 {
+			runes = []rune("处理中")
+		}
+
+		// 给光效前后留一点空白，看起来更像“扫过”
+		padding := 3
+		frame := 0
+		direction := 1
 
 		for {
 			select {
@@ -48,9 +58,35 @@ func (l *LoadingAnimation) Start() {
 				fmt.Printf("\r\x1b[K")
 				return
 			default:
-				cyan.Printf("\r%s %s...", frames[i], l.message)
-				i = (i + 1) % len(frames)
-				time.Sleep(80 * time.Millisecond)
+				shinePos := frame - padding
+
+				var b strings.Builder
+				b.WriteString("\r")
+				for idx, r := range runes {
+					dist := absInt(idx - shinePos)
+					switch dist {
+					case 0:
+						b.WriteString(shine.Sprint(string(r)))
+					case 1:
+						b.WriteString(mid.Sprint(string(r)))
+					case 2:
+						b.WriteString(soft.Sprint(string(r)))
+					default:
+						b.WriteString(base.Sprint(string(r)))
+					}
+				}
+				fmt.Print(b.String())
+
+				frame += direction
+				maxFrame := len(runes) + padding*2 - 1
+				if frame >= maxFrame {
+					frame = maxFrame
+					direction = -1
+				} else if frame <= 0 {
+					frame = 0
+					direction = 1
+				}
+				time.Sleep(95 * time.Millisecond)
 			}
 		}
 	}()
@@ -72,20 +108,18 @@ func (l *LoadingAnimation) StopWithResult(success bool, result string) {
 	red := color.New(color.FgRed)
 
 	if success {
-		// 截断过长的结果
-		display := result
-		lines := strings.Split(display, "\n")
-		if len(lines) > 5 {
-			display = strings.Join(lines[:5], "\n") + fmt.Sprintf("\n  ... (共 %d 行，已截断)", len(lines))
-		}
-		if len(display) > 200 {
-			display = display[:200] + "..."
-		}
-		green.Printf("✅ %s 完成\n", l.message)
-		if display != "" {
-			fmt.Printf("   %s\n", display)
-		}
+		green.Printf("✔ %s 完成\n", l.message)
 	} else {
-		red.Printf("❌ %s 失败: %s\n", l.message, result)
+		red.Printf("✖ %s 失败\n", l.message)
+		if result != "" {
+			fmt.Printf("  %s\n", result)
+		}
 	}
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

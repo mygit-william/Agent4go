@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 
@@ -17,10 +18,15 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 	})
 
 	toolsDef := a.toolManager.GetFunctionDefinitions()
+	fmt.Println()
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("任务开始")
+	fmt.Printf("└─ 用户输入: %s\n", compactLine(input, 140))
 
 	for step := 0; step < MaxExecutionSteps; step++ {
+		fmt.Printf("\n├─ 步骤 %d/%d\n", step+1, MaxExecutionSteps)
 		// 调用 LLM
-		loading := utils.NewLoadingAnimation("AI 思考中")
+		loading := utils.NewLoadingAnimation("思考中")
 		loading.Start()
 		resp, err := a.llm.Chat(messages, toolsDef)
 		loading.Stop()
@@ -34,14 +40,15 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 		// 没有工具调用，直接返回
 		if len(resp.Tool) == 0 {
 			green := color.New(color.FgGreen)
-			green.Println("✅ AI 回复完成")
+			green.Println("✔ 任务完成，回复已生成")
+			fmt.Println(strings.Repeat("=", 60))
 			a.saveToLongTermMemory(sessionID, input, resp.Reply)
 			return resp.Reply
 		}
 
 		// 有工具调用
 		yellow := color.New(color.FgYellow)
-		yellow.Printf("🔧 AI 请求执行 %d 个工具\n", len(resp.Tool))
+		yellow.Printf("│  ├─ 执行工具: %d 个\n", len(resp.Tool))
 
 		// 构建 Assistant 消息
 		*messages = append(*messages, llm.Message{
@@ -51,7 +58,13 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 		})
 
 		// 执行所有工具调用
-		for _, toolCall := range resp.Tool {
+		for i, toolCall := range resp.Tool {
+			isLast := i == len(resp.Tool)-1
+			branch := "│  ├─"
+			if isLast {
+				branch = "│  └─"
+			}
+			fmt.Printf("%s [%d/%d] %s\n", branch, i+1, len(resp.Tool), toolCall.Function.Name)
 			context := map[string]interface{}{
 				"tool": map[string]interface{}{
 					"name":      toolCall.Function.Name,
@@ -62,6 +75,7 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 			// 触发 PRE_ACTION Hook
 			context = a.triggerHooks("PRE_ACTION", context)
 			if a.shouldStop(context) {
+				fmt.Printf("│     ✖ 工具 %s 被策略拒绝\n", toolCall.Function.Name)
 				*messages = append(*messages, llm.Message{
 					Role:       "tool",
 					ToolCallID: toolCall.ID,
@@ -92,6 +106,14 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 	}
 
 	return "执行达到最大步骤限制"
+}
+
+func compactLine(s string, maxLen int) string {
+	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // triggerHooks 触发所有 Hook
