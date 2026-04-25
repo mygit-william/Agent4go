@@ -1,59 +1,65 @@
-# Binaries for programs and plugins
+# Binaries
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+nanobot
+nanobot.exe
+nanobot1.exe
+nanobotc.exe
+1.exe
+2.exe
+3.exe
 
-# Test binary, built with `go test -c`
+# Go
+vendor/
+go.work
+go.work.sum
+
+# Test & coverage
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-vendor/
-
-# Go workspace file
-go.work
-
-# IDE specific files
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+ehthumbs.db
 
-# Project specific
-nanobot.exe
+# Logs & temp
 *.log
 *.tmp
-
-# Docker
-.dockerignore
-
-# Local configuration files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Build output
-dist/
-build/
-
-# Temporary files
+*.bak
 tmp/
 temp/
 
+# Personal / local data
+.env
+.env.*
+storage/context/*.json
+storage/logs/*.log
+storage/memory/*
+memory/*.md
+!storage/context/.gitkeep
+!storage/logs/.gitkeep
+!storage/memory/.gitkeep
+
+# Config with secrets — keep the example only
 config/config.json
+
+# Internal docs & wikis
+.zread/
+总结.md
+TASK_SUMMARY.md
+summary.md
+
+# Build artifacts
+dist/
+build/

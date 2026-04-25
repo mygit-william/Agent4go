@@ -43,6 +43,10 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 			green.Println("✔ 任务完成，回复已生成")
 			fmt.Println(strings.Repeat("=", 60))
 			a.saveToLongTermMemory(sessionID, input, resp.Reply)
+
+			// 飞书通知：任务完成
+			a.notifyComplete(input, resp.Reply)
+
 			return resp.Reply
 		}
 
@@ -105,7 +109,21 @@ func (a *Agent) Chat(sessionID, input string, messages *[]llm.Message) string {
 		}
 	}
 
+	// 飞书通知：达到步骤上限
+	a.notifyComplete(input, "执行达到最大步骤限制")
+
 	return "执行达到最大步骤限制"
+}
+
+// notifyComplete 任务完成后发送通知
+func (a *Agent) notifyComplete(input, output string) {
+	if a.notifier != nil && a.notifier.IsEnabled() {
+		summary := fmt.Sprintf("输入: %s\n输出: %s", compactLine(input, 200), compactLine(output, 500))
+		if err := a.notifier.NotifyTaskComplete(summary); err != nil {
+			red := color.New(color.FgRed)
+			red.Printf("⚠ 飞书通知发送失败: %v\n", err)
+		}
+	}
 }
 
 func compactLine(s string, maxLen int) string {

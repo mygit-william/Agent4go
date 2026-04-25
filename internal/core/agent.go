@@ -12,6 +12,13 @@ const (
 	MaxLongTermMemories   = 50
 )
 
+// Notifier 通知器接口
+
+type Notifier interface {
+	NotifyTaskComplete(summary string) error
+	IsEnabled() bool
+}
+
 // Agent 智能代理
 type Agent struct {
 	llm         llm.Interface
@@ -19,6 +26,7 @@ type Agent struct {
 	storageDir  string
 	hooks       []Hook
 	permissionMode string
+	notifier    Notifier
 }
 
 // NewAgent 创建 Agent
@@ -40,6 +48,11 @@ func NewAgent(llmAdapter llm.Interface, storageDir string, permissionMode string
 	agent.addPermissionHooks()
 
 	return agent
+}
+
+// SetNotifier 设置通知器
+func (a *Agent) SetNotifier(n Notifier) {
+	a.notifier = n
 }
 
 // AddHook 添加 Hook

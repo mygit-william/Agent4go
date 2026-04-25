@@ -56,6 +56,13 @@ func main() {
 	}
 	agent := core.NewAgent(llmAdapter, filepath.Join(projectRoot, "storage"), permissionMode)
 
+	// 设置飞书通知器
+	feishuNotifier := channels.NewFeishuNotifier(config.Channels.Feishu)
+	agent.SetNotifier(feishuNotifier)
+	if feishuNotifier.IsEnabled() {
+		fmt.Println("📢 飞书通知已启用")
+	}
+
 	switch *mode {
 	case "cli":
 		cliChannel := channels.NewCLIChannel(agent, projectRoot)
@@ -83,6 +90,7 @@ type Config struct {
 			AppSecret  string `json:"app_secret"`
 			WebhookURL string `json:"webhook_url"`
 		} `json:"dingtalk"`
+		Feishu channels.FeishuConfig `json:"feishu"`
 	} `json:"channels"`
 	Permissions struct {
 		Mode        string `json:"mode"`

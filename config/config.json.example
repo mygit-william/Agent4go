@@ -53,6 +53,10 @@
       "app_key": "YOUR_DINGTALK_APP_KEY",
       "app_secret": "YOUR_DINGTALK_APP_SECRET",
       "webhook_url": "YOUR_DINGTALK_WEBHOOK_URL"
+    },
+    "feishu": {
+      "enabled": false,
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_WEBHOOK_ID"
     }
   },
   "permissions": {

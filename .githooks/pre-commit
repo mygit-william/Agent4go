@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# Pre-commit hook for Nanobot-Go
+echo "🔍 运行预提交检查..."
+
+# Check if go.mod is tidy
+if [ -f "go.mod" ]; then
+    echo "📦 检查依赖..."
+    if ! go mod tidy; then
+        echo "❌ go mod tidy 失败"
+        exit 1
+    fi
+    git add go.mod go.sum
+fi
+
+# Run basic syntax check on Go files
+echo "🧪 检查Go语法..."
+for file in $(find . -name "*.go" -type f); do
+    if [ -f "$file" ]; then
+        go build -o /dev/null "$file" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "❌ $file 编译失败"
+            exit 1
+        fi
+    fi
+done
+
+echo "✅ 所有检查通过!"
+exit 0
