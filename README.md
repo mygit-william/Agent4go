@@ -1,8 +1,8 @@
 # Nanobot
 
-**A lightweight, extensible Go-based LLM Agent framework with built-in tools, security hooks, and multi-channel notifications.**
+**A lightweight, extensible Go-based LLM Agent framework with built-in tools, security hooks, multi-channel notifications, and Web UI.**
 
-[Features](#-features) · [Quick Start](#-quick-start) · [Configuration](#-configuration) · [Development](#-development) · [Deployment](#-deployment)
+[Features](#-features) · [Quick Start](#-quick-start) · [Configuration](#-configuration) · [Web UI](#-web-ui) · [Development](#-development) · [Deployment](#-deployment)
 
 ---
 
@@ -15,8 +15,11 @@
 | 📁 **Built-in Tools** | `read_file`, `write_file`, `edit_file`, `bash` (with whitelist/blacklist) |
 | 🧠 **Memory** | Long-term memory storage + conversation context management |
 | 📢 **Notifications** | Feishu (飞书) Webhook — get notified when a task finishes |
+| 🌐 **Web UI** | Built-in responsive web interface with SSE streaming, session management, and tool call visualization |
 | 🔌 **Extensible** | Add new LLM adapters, tools, or hooks in minutes |
 | ⚡ **Go-native** | Single binary, no runtime needed, cross-platform compile |
+
+---
 
 ## 📦 Quick Start
 
@@ -37,27 +40,61 @@ go mod tidy
 
 ```bash
 cp config/config.json.example config/config.json
-# Then edit config/config.json and fill in your API key + webhook URL
+# Edit config/config.json and fill in your API key + webhook URL
 ```
 
 ### 3 — Run
 
+**CLI Mode:**
 ```bash
 go run ./cmd/nanobot/ -mode cli
 ```
 
-That's it. You'll see the CLI prompt. Type a task and press Enter.
+**Web Mode:**
+```bash
+go run ./cmd/nanobot/ -mode web -port 8080
+```
+
+---
+
+## 🌐 Web UI
+
+Nanobot includes a built-in web interface with:
+
+- 💬 **Real-time streaming** — SSE (Server-Sent Events) for token-by-token responses
+- 📂 **Session management** — Create, switch, rename, and delete conversations
+- 🔧 **Tool call visualization** — Expandable tool calls with arguments and results
+- 🌙 **Dark theme** — Easy on the eyes
+- 📱 **Responsive** — Works on desktop and mobile
+- 📦 **Single binary** — Frontend is embedded into the Go binary via `//go:embed`
+
+### Screenshot
 
 ```
-Nanobot CLI
-输入任务开始执行，或使用: help | clear | exit
-
-› 帮我整理一下当前目录下的文件
-├─ 步骤 1/1000
-│  ├─ 执行工具: 1 个
-│  └─ [1/1] bash
-✔ 任务完成，回复已生成
+┌─────────────────────────────────────────────┐
+│  🤖 Nanobot                    [New Chat]  │
+├──────────┬──────────────────────────────────┤
+│ Sessions  │  User: 帮我查一下天气            │
+│ ○ Chat 1 │                                  │
+│ ○ Chat 2 │  🔧 bash                        │
+│          │     {"command": "curl wttr.in"}  │
+│          │     ✅ 200 OK                     │
+│          │                                  │
+│          │  Assistant: 今天北京晴，20-28°C   │
+└──────────┴──────────────────────────────────┘
 ```
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Web UI |
+| GET | `/api/sessions` | List all sessions |
+| POST | `/api/sessions` | Create new session |
+| GET | `/api/sessions/{id}` | Get session details |
+| DELETE | `/api/sessions/{id}` | Delete session |
+| POST | `/api/chat/stream/post` | SSE streaming chat (recommended) |
+| GET | `/api/chat/stream` | SSE streaming chat (GET, short messages) |
 
 ---
 
@@ -69,6 +106,9 @@ nanobot-go/
 ├── internal/
 │   ├── core/
 │   │   ├── agent.go              # Agent core + hook system
+│   │   ├── agent_chat.go         # Chat loop (CLI mode)
+│   │   ├── agent_chat_stream.go  # Chat loop (streaming mode)
+│   │   ├── stream_handler.go     # StreamHandler interface + events
 │   │   └── tool_manager.go       # Tool registry & dispatcher
 │   ├── llm/                     # LLM adapters (OpenAI-compatible)
 │   │   ├── factory.go           # Adapter factory
@@ -85,7 +125,14 @@ nanobot-go/
 │   ├── channels/
 │   │   ├── cli.go               # CLI input/output
 │   │   └── feishu.go            # Feishu Webhook notifier
-│   └── memory/memory.go         # Memory management
+│   ├── memory/memory.go         # Memory management
+│   └── web/                    # 🆕 Web UI backend
+│       ├── server.go            # HTTP server + session management
+│       ├── handler.go          # API handlers + SSE
+│       ├── static.go           # Embedded frontend files
+│       ├── index.html          # Web UI HTML
+│       ├── app.js              # Web UI JavaScript
+│       └── style.css           # Web UI CSS
 ├── config/
 │   └── config.json.example      # Configuration template
 ├── storage/                     # Working directory for AI operations
@@ -146,7 +193,8 @@ nanobot-go/
 ### CLI flags
 
 ```
--mode cli|serve     # cli = interactive terminal, serve = server mode (default: cli)
+-mode cli|web       # cli = interactive terminal, web = web UI (default: cli)
+-port <number>      # Port for web mode (default: 8080)
 -config <path>      # Path to config file (default: config/config.json)
 ```
 
@@ -195,6 +243,16 @@ func (h *MyHook) Handle(event string, ctx map[string]interface{}) map[string]int
 }
 ```
 
+### Web UI Development
+
+The frontend files are embedded into the binary. To modify the UI:
+
+1. Edit files in `internal/web/` (`index.html`, `app.js`, `style.css`)
+2. Run `go generate ./internal/web/` (if you add a `//go:generate` directive)
+3. Rebuild: `go build ./cmd/nanobot/`
+
+The `static.go` file uses `//go:embed` to include the frontend files — no separate build step needed.
+
 ---
 
 ## 🚀 Deployment
@@ -212,7 +270,31 @@ GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o nanobot ./cmd/nanobot/
 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o nanobot ./cmd/nanobot/
 ```
 
-The binary is self-contained. Copy it + `config/` + `storage/` to the target machine.
+The binary is fully self-contained — the web UI is embedded inside. Just copy the binary + `config/` + `storage/` to the target machine.
+
+### Run as a service (Linux systemd)
+
+```ini
+# /etc/systemd/system/nanobot.service
+[Unit]
+Description=Nanobot Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=nanobot
+WorkingDirectory=/opt/nanobot
+ExecStart=/opt/nanobot/nanobot -mode web -port 8080
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now nanobot
+```
 
 ### Docker
 
@@ -224,7 +306,7 @@ Or build manually:
 
 ```bash
 docker build -t nanobot .
-docker run -v $(pwd)/config:/app/config -v $(pwd)/storage:/app/storage nanobot -mode cli
+docker run -v $(pwd)/config:/app/config -v $(pwd)/storage:/app/storage nanobot -mode web -port 8080
 ```
 
 ---
@@ -234,6 +316,7 @@ docker run -v $(pwd)/config:/app/config -v $(pwd)/storage:/app/storage nanobot -
 - **`bash` tool**: supports command whitelist/blacklist — dangerous commands like `rm -rf /`, `dd`, `shutdown` are blocked by default
 - **Permission modes**: `default` asks for confirmation before writes; `plan` is read-only; `auto` approves everything
 - **Hook system**: every tool execution goes through `PRE_ACTION` → `POST_ACTION` hooks
+- **Web mode**: automatically sets permission mode to `auto` (no confirmation prompts)
 
 > ⚠️ The `bash` tool's whitelist checks are currently **commented out**. Review `internal/tools/bash.go` before running untrusted prompts in production.
 

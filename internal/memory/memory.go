@@ -307,6 +307,18 @@ func (m *Manager) AppendLongTermMemory(content string) error {
 	return nil
 }
 
+// DeleteConversation 删除对话
+func (m *Manager) DeleteConversation(sessionID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	path := m.conversationPath(sessionID)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("删除对话文件失败: %w", err)
+	}
+	return nil
+}
+
 // SearchLongTermMemory 搜索长期记忆
 func (m *Manager) SearchLongTermMemory(query string) ([]string, error) {
 	content, err := m.LoadLongTermMemory()

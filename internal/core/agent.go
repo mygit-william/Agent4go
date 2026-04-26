@@ -55,6 +55,14 @@ func (a *Agent) SetNotifier(n Notifier) {
 	a.notifier = n
 }
 
+// SetPermissionMode 设置权限模式
+func (a *Agent) SetPermissionMode(mode string) {
+	a.permissionMode = mode
+	// 重新添加权限 Hook
+	a.hooks = nil
+	a.addPermissionHooks()
+}
+
 // AddHook 添加 Hook
 func (a *Agent) AddHook(hook Hook) {
 	a.hooks = append(a.hooks, hook)
