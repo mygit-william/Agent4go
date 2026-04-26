@@ -733,7 +733,35 @@ body {
     font-family: 'Consolas', 'Monaco', 'JetBrains Mono', monospace;
 }
 
+.tool-call .tool-display-line {
+    font-family: 'Consolas', 'Monaco', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-1);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tool-call .tool-status {
+    font-size: 11px;
+    color: var(--warning);
+    margin-left: auto;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.tool-call.executing {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 1px var(--warning);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 .tool-call .tool-args {
+    display: none;
     padding: 10px 12px;
     background: var(--bg-0);
     font-family: 'Consolas', 'Monaco', 'JetBrains Mono', monospace;
@@ -745,12 +773,18 @@ body {
     border-top: 1px solid var(--border);
 }
 
+.tool-call .tool-args.visible {
+    display: block;
+}
+
 .tool-call .tool-result {
     display: none;
     padding: 10px 12px;
     font-size: 12px;
     line-height: 1.5;
     border-top: 1px solid var(--border);
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .tool-call .tool-result.visible {
@@ -783,36 +817,14 @@ body {
     color: var(--error);
 }
 
-/* Legacy tool-call support */
-.tool-call {
-    background: var(--bg-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    margin: 8px 0;
-    overflow: hidden;
+/* Tool call executing state */
+.tool-call.executing .tool-call-header {
+    background: rgba(245, 158, 11, 0.05);
 }
 
-.tool-call-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    cursor: pointer;
-    transition: background 0.2s;
-    user-select: none;
+.tool-call.executing .tool-call-header:hover {
+    background: rgba(245, 158, 11, 0.1);
 }
-
-.tool-call-header:hover {
-    background: var(--bg-hover);
-}
-
-.tool-call-header .toggle-icon {
-    font-size: 10px;
-    color: var(--text-3);
-    transition: transform 0.2s;
-}
-
-.tool-call-header.expanded .toggle-icon {
     transform: rotate(90deg);
 }
 

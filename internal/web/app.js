@@ -11,6 +11,7 @@ let sessions = [];
 let isStreaming = false;
 let eventSource = null;
 let currentTheme = 'dark';
+let currentAssistantMsgEl = null;
 
 // ========== DOM 元素 ==========
 const els = {
@@ -340,14 +341,16 @@ function createMessageElement(role, content, toolCalls) {
         }
     });
 
-    // Bind tool call toggles - click header to show/hide result
+    // Bind tool call toggles - click header to show/hide result and args
     msgDiv.querySelectorAll('.tool-call').forEach(toolEl => {
         const header = toolEl.querySelector('.tool-call-header');
-        const result = toolEl.querySelector('.tool-result');
-        if (!header || !result) return;
+        if (!header) return;
         header.addEventListener('click', () => {
             header.classList.toggle('expanded');
-            result.classList.toggle('visible');
+            const result = toolEl.querySelector('.tool-result');
+            if (result) result.classList.toggle('visible');
+            const args = toolEl.querySelector('.tool-args');
+            if (args) args.classList.toggle('visible');
         });
     });
 
@@ -403,14 +406,25 @@ function renderToolCall(tool, idx) {
         ? tool.function.arguments
         : JSON.stringify(tool.function.arguments, null, 2);
 
+    // 解析参数，提取文件路径或命令
+    let displayLine = '';
+    try {
+        const parsedArgs = JSON.parse(args);
+        displayLine = formatToolDisplay(tool.function.name, parsedArgs);
+    } catch (e) {
+        displayLine = tool.function.name;
+    }
+
     const hasResult = tool.result !== undefined && tool.result !== null;
+    const isExecuting = !hasResult && tool.result === undefined;
     const resultHtml = hasResult ? renderToolResult(tool.result, tool.success) : '';
 
     return `
-        <div class="tool-call" data-tool-index="${idx}">
+        <div class="tool-call ${isExecuting ? 'executing' : ''}" data-tool-index="${idx}" data-tool-name="${escapeHtml(tool.function.name)}">
             <div class="tool-call-header ${hasResult ? '' : 'expanded'}">
                 <span class="toggle-icon">▶</span>
-                <span class="tool-name">${escapeHtml(tool.function.name)}</span>
+                <span class="tool-display-line">${escapeHtml(displayLine)}</span>
+                ${isExecuting ? '<span class="tool-status">⏳ 执行中...</span>' : ''}
             </div>
             <div class="tool-args">${escapeHtml(args)}</div>
             ${resultHtml}
@@ -418,10 +432,42 @@ function renderToolCall(tool, idx) {
     `;
 }
 
+// 格式化工具显示行
+function formatToolDisplay(toolName, args) {
+    switch (toolName) {
+        case 'read_file':
+            return `read_file ${args.path || ''}`;
+        case 'write_file':
+            return `write_file ${args.path || ''}`;
+        case 'edit_file':
+            return `edit_file ${args.path || ''}`;
+        case 'bash':
+            return `bash ${args.command || ''}`;
+        default:
+            return `${toolName} ${JSON.stringify(args)}`;
+    }
+}
+
+// 格式化工具显示行
+function formatToolDisplay(toolName, args) {
+    switch (toolName) {
+        case 'read_file':
+            return `read_file ${args.path || ''}`;
+        case 'write_file':
+            return `write_file ${args.path || ''}`;
+        case 'edit_file':
+            return `edit_file ${args.path || ''}`;
+        case 'bash':
+            return `bash ${args.command || ''}`;
+        default:
+            return `${toolName} ${JSON.stringify(args)}`;
+    }
+}
+
 function renderToolResult(result, success) {
     const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
     return `
-        <div class="tool-result ${success ? 'success' : 'error'}">
+        <div class="tool-result ${success ? 'success' : 'error'} visible">
             <div class="tool-result-header ${success ? 'success' : 'error'}">
                 ${success ? '✓' : '✗'} 执行结果
             </div>
@@ -431,12 +477,35 @@ function renderToolResult(result, success) {
 }
 
 function renderToolResultLegacy(toolName, result, success) {
+    // 找到对应的工具块（通过 tool-name 匹配）
     const toolCalls = els.messages.querySelectorAll('.tool-call');
-    const lastTool = toolCalls[toolCalls.length - 1];
-    if (!lastTool) return;
+    let targetTool = null;
+    
+    // 优先找没有结果且名字匹配的工具块
+    for (let i = toolCalls.length - 1; i >= 0; i--) {
+        const nameAttr = toolCalls[i].getAttribute('data-tool-name');
+        if (nameAttr === toolName && !toolCalls[i].querySelector('.tool-result')) {
+            targetTool = toolCalls[i];
+            break;
+        }
+    }
+    
+    // 如果没找到匹配的，找最后一个没有结果的工具块
+    if (!targetTool) {
+        for (let i = toolCalls.length - 1; i >= 0; i--) {
+            if (!toolCalls[i].querySelector('.tool-result')) {
+                targetTool = toolCalls[i];
+                break;
+            }
+        }
+    }
+    
+    if (!targetTool) return;
 
-    // 避免重复渲染 result
-    if (lastTool.querySelector('.tool-result')) return;
+    // 移除执行中状态
+    targetTool.classList.remove('executing');
+    const statusEl = targetTool.querySelector('.tool-status');
+    if (statusEl) statusEl.remove();
 
     const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
     const resultDiv = document.createElement('div');
@@ -448,16 +517,21 @@ function renderToolResultLegacy(toolName, result, success) {
         <div>${escapeHtml(resultText).substring(0, 500)}${resultText.length > 500 ? '...' : ''}</div>
     `;
 
-    lastTool.appendChild(resultDiv);
+    targetTool.appendChild(resultDiv);
 
     // 绑定 toggle：点击 header 展开/折叠 result
-    const header = lastTool.querySelector('.tool-call-header');
+    const header = targetTool.querySelector('.tool-call-header');
     if (header) {
         // 移除之前的 expanded 类（流式时默认展开的）
         header.classList.remove('expanded');
-        header.addEventListener('click', () => {
-            header.classList.toggle('expanded');
+        // 移除旧的点击事件（通过克隆替换）
+        const newHeader = header.cloneNode(true);
+        header.parentNode.replaceChild(newHeader, header);
+        newHeader.addEventListener('click', () => {
+            newHeader.classList.toggle('expanded');
             resultDiv.classList.toggle('visible');
+            const args = targetTool.querySelector('.tool-args');
+            if (args) args.classList.toggle('visible');
         });
     }
 
@@ -624,8 +698,7 @@ function updateOrCreateAssistantMsg(content, currentMsg) {
     return currentMsg;
 }
 
-// 全局变量，跟踪当前 assistant 消息元素
-let currentAssistantMsgEl = null;
+
 
 function handleSSEEvent(eventType, data) {
     switch (eventType) {
@@ -645,7 +718,21 @@ function handleSSEEvent(eventType, data) {
             toolDiv.innerHTML = renderToolCall({
                 function: { name: data.tool_name, arguments: data.tool_args }
             }, data.tool_index);
-            currentAssistantMsgEl.querySelector('.message-content').appendChild(toolDiv);
+            const toolEl = toolDiv.firstElementChild;
+            currentAssistantMsgEl.querySelector('.message-content').appendChild(toolEl);
+            
+            // 绑定点击展开/折叠
+            const header = toolEl.querySelector('.tool-call-header');
+            if (header) {
+                header.addEventListener('click', () => {
+                    header.classList.toggle('expanded');
+                    const result = toolEl.querySelector('.tool-result');
+                    if (result) result.classList.toggle('visible');
+                    const args = toolEl.querySelector('.tool-args');
+                    if (args) args.classList.toggle('visible');
+                });
+            }
+            
             scrollToBottom();
             break;
         case 'tool_result':
