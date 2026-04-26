@@ -10,6 +10,7 @@ let currentSessionId = null;
 let sessions = [];
 let isStreaming = false;
 let eventSource = null;
+let currentTheme = 'dark';
 
 // ========== DOM 元素 ==========
 const els = {
@@ -17,6 +18,7 @@ const els = {
     sessionList: document.getElementById('session-list'),
     btnNewChat: document.getElementById('btn-new-chat'),
     btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
+    btnThemeToggle: document.getElementById('theme-toggle'),
     chatTitle: document.getElementById('chat-title'),
     messages: document.getElementById('messages'),
     messageInput: document.getElementById('message-input'),
@@ -25,6 +27,7 @@ const els = {
 
 // ========== 初始化 ==========
 document.addEventListener('DOMContentLoaded', () => {
+    loadTheme();
     loadSessions();
     setupEventListeners();
     autoResizeTextarea();
@@ -34,6 +37,7 @@ function setupEventListeners() {
     els.btnNewChat.addEventListener('click', createNewSession);
     els.btnToggleSidebar.addEventListener('click', toggleSidebar);
     els.btnSend.addEventListener('click', sendMessage);
+    els.btnThemeToggle.addEventListener('click', toggleTheme);
 
     els.messageInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -46,12 +50,35 @@ function setupEventListeners() {
 function autoResizeTextarea() {
     els.messageInput.addEventListener('input', () => {
         els.messageInput.style.height = 'auto';
-        els.messageInput.style.height = els.messageInput.scrollHeight + 'px';
+        els.messageInput.style.height = Math.min(els.messageInput.scrollHeight, 200) + 'px';
     });
 }
 
 function toggleSidebar() {
     els.sidebar.classList.toggle('collapsed');
+}
+
+// ========== THEME ==========
+
+function loadTheme() {
+    const saved = localStorage.getItem('nanobot-theme');
+    if (saved) {
+        currentTheme = saved;
+        applyTheme(currentTheme);
+    }
+}
+
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(currentTheme);
+    localStorage.setItem('nanobot-theme', currentTheme);
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (els.btnThemeToggle) {
+        els.btnThemeToggle.textContent = theme === 'dark' ? '🌙' : '☀️';
+    }
 }
 
 // ========== 会话管理 ==========
@@ -70,30 +97,78 @@ async function loadSessions() {
 function renderSessionList() {
     els.sessionList.innerHTML = '';
 
-    sessions.forEach(session => {
-        const item = document.createElement('div');
-        item.className = `session-item ${session.id === currentSessionId ? 'active' : ''}`;
-        item.innerHTML = `
-            <div class="session-info">
-                <div class="session-title">${escapeHtml(session.title)}</div>
-                <div class="session-meta">${formatTime(session.updated_at)} · ${session.message_count} 条消息</div>
-            </div>
-            <div class="session-actions">
-                <button class="btn-delete" title="删除">×</button>
-            </div>
-        `;
+    // Group sessions by date
+    const groups = groupSessionsByDate(sessions);
 
-        item.addEventListener('click', (e) => {
-            if (e.target.classList.contains('btn-delete')) {
-                e.stopPropagation();
-                deleteSession(session.id);
-            } else {
-                switchSession(session.id);
-            }
+    groups.forEach(group => {
+        const groupLabel = document.createElement('div');
+        groupLabel.className = 'session-group-label';
+        groupLabel.textContent = group.label;
+        els.sessionList.appendChild(groupLabel);
+
+        group.sessions.forEach(session => {
+            const item = document.createElement('div');
+            item.className = `session-item ${session.id === currentSessionId ? 'active' : ''}`;
+            item.innerHTML = `
+                <span class="session-icon">💬</span>
+                <div class="session-info">
+                    <div class="session-title">${escapeHtml(session.title)}</div>
+                    <div class="session-meta">${formatTime(session.updated_at)} · ${session.message_count} 条消息</div>
+                </div>
+                <div class="session-actions">
+                    <button class="btn-delete" title="删除">×</button>
+                </div>
+            `;
+
+            item.addEventListener('click', (e) => {
+                if (e.target.classList.contains('btn-delete')) {
+                    e.stopPropagation();
+                    deleteSession(session.id);
+                } else {
+                    switchSession(session.id);
+                }
+            });
+
+            els.sessionList.appendChild(item);
         });
-
-        els.sessionList.appendChild(item);
     });
+}
+
+function groupSessionsByDate(sessions) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const groups = [];
+    const todaySessions = [];
+    const yesterdaySessions = [];
+    const olderSessions = [];
+
+    sessions.forEach(session => {
+        const sessionDate = new Date(session.updated_at);
+        const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate());
+
+        if (sessionDay.getTime() === today.getTime()) {
+            todaySessions.push(session);
+        } else if (sessionDay.getTime() === yesterday.getTime()) {
+            yesterdaySessions.push(session);
+        } else {
+            olderSessions.push(session);
+        }
+    });
+
+    if (todaySessions.length > 0) {
+        groups.push({ label: '今天', sessions: todaySessions });
+    }
+    if (yesterdaySessions.length > 0) {
+        groups.push({ label: '昨天', sessions: yesterdaySessions });
+    }
+    if (olderSessions.length > 0) {
+        groups.push({ label: '更早', sessions: olderSessions });
+    }
+
+    return groups;
 }
 
 async function createNewSession() {
@@ -160,61 +235,167 @@ async function deleteSession(sessionId) {
 
 function clearMessages() {
     els.messages.innerHTML = `
-        <div class="welcome">
-            <h2>👋 你好！我是 Nanobot</h2>
-            <p>输入任务开始执行，我可以帮你读写文件、执行命令、编辑代码等。</p>
+        <div class="messages-inner">
+            <div class="welcome">
+                <div class="welcome-logo">🤖</div>
+                <h2>你好！我是 Nanobot</h2>
+                <p>输入任务开始执行，我可以帮你读写文件、执行命令、编辑代码等。</p>
+                <div class="welcome-suggestions">
+                    <button class="suggestion-btn">📝 帮我写一个 Go 的 HTTP 服务器</button>
+                    <button class="suggestion-btn">🔧 分析项目目录结构并优化</button>
+                    <button class="suggestion-btn">📊 读取并总结最近的日志文件</button>
+                </div>
+            </div>
         </div>
     `;
+
+    // Bind suggestion buttons
+    els.messages.querySelectorAll('.suggestion-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            els.messageInput.value = btn.textContent.replace(/^[^\s]+\s/, '');
+            sendMessage();
+        });
+    });
 }
 
 function renderMessages(messages) {
-    els.messages.innerHTML = '';
+    els.messages.innerHTML = '<div class="messages-inner"></div>';
+    const inner = els.messages.querySelector('.messages-inner');
+
+    // 先收集所有 tool 消息的结果，按 tool_call_id 索引
+    const toolResults = {};
+    messages.forEach(msg => {
+        if (msg.role === 'tool' && msg.tool_call_id) {
+            toolResults[msg.tool_call_id] = {
+                content: msg.content,
+                name: msg.name
+            };
+        }
+    });
 
     messages.forEach(msg => {
-        if (msg.role === 'system') return;
-        appendMessage(msg.role, msg.content, msg.tool_calls);
+        if (msg.role === 'system' || msg.role === 'tool') return;
+        
+        // 如果有 tool_calls，尝试匹配 tool 结果
+        let toolCalls = msg.tool_calls || [];
+        if (toolCalls.length > 0) {
+            toolCalls = toolCalls.map(tool => {
+                const result = toolResults[tool.id];
+                if (result) {
+                    return {
+                        ...tool,
+                        result: result.content,
+                        success: !result.content.startsWith('错误')
+                    };
+                }
+                return tool;
+            });
+        }
+        
+        const msgEl = createMessageElement(msg.role, msg.content || '', toolCalls);
+        inner.appendChild(msgEl);
     });
 
     scrollToBottom();
 }
 
-function appendMessage(role, content, toolCalls) {
-    // 移除欢迎语
-    const welcome = els.messages.querySelector('.welcome');
-    if (welcome) welcome.remove();
-
+function createMessageElement(role, content, toolCalls) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role}`;
 
     const avatar = role === 'user' ? '👤' : role === 'assistant' ? '🤖' : '⚙️';
 
-    let contentHtml = formatContent(content);
+    // 处理 content 为 null 的情况
+    const safeContent = content || '';
+    let contentHtml = formatContent(safeContent);
 
     // 工具调用展示
     if (toolCalls && toolCalls.length > 0) {
-        toolCalls.forEach((tool, idx) => {
-            contentHtml += renderToolCall(tool, idx);
-        });
+        contentHtml += renderToolChain(toolCalls);
     }
 
     msgDiv.innerHTML = `
         <div class="message-avatar">${avatar}</div>
-        <div class="message-content">${contentHtml}</div>
+        <div class="message-content-wrapper">
+            <div class="message-content">${contentHtml}</div>
+            <div class="message-meta">
+                <span>${formatTime(new Date().toISOString())}</span>
+                <div class="message-actions">
+                    <button class="msg-action-btn" title="复制">📋</button>
+                    ${role === 'assistant' ? '<button class="msg-action-btn" title="重新生成">🔄</button>' : ''}
+                </div>
+            </div>
+        </div>
     `;
 
-    els.messages.appendChild(msgDiv);
-    scrollToBottom();
+    // Bind copy action
+    msgDiv.querySelectorAll('.msg-action-btn').forEach(btn => {
+        if (btn.title === '复制') {
+            btn.addEventListener('click', () => {
+                navigator.clipboard.writeText(safeContent).then(() => {
+                    btn.textContent = '✓';
+                    setTimeout(() => btn.textContent = '📋', 2000);
+                });
+            });
+        }
+    });
 
-    // 绑定工具调用折叠事件
-    msgDiv.querySelectorAll('.tool-call-header').forEach(header => {
+    // Bind tool call toggles - click header to show/hide result
+    msgDiv.querySelectorAll('.tool-call').forEach(toolEl => {
+        const header = toolEl.querySelector('.tool-call-header');
+        const result = toolEl.querySelector('.tool-result');
+        if (!header || !result) return;
         header.addEventListener('click', () => {
             header.classList.toggle('expanded');
-            const args = header.nextElementSibling;
-            if (args) args.classList.toggle('visible');
+            result.classList.toggle('visible');
+        });
+    });
+
+    // Bind code copy buttons
+    msgDiv.querySelectorAll('.code-copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const code = btn.closest('.code-block').querySelector('code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = '✓ 已复制';
+                setTimeout(() => btn.textContent = '📋 复制', 2000);
+            });
         });
     });
 
     return msgDiv;
+}
+
+function appendMessage(role, content, toolCalls) {
+    // 移除欢迎语
+    const welcome = els.messages.querySelector('.welcome');
+    if (welcome) {
+        welcome.closest('.messages-inner').innerHTML = '';
+    }
+
+    let inner = els.messages.querySelector('.messages-inner');
+    if (!inner) {
+        els.messages.innerHTML = '<div class="messages-inner"></div>';
+        inner = els.messages.querySelector('.messages-inner');
+    }
+
+    const msgEl = createMessageElement(role, content, toolCalls);
+    inner.appendChild(msgEl);
+    scrollToBottom();
+
+    return msgEl;
+}
+
+// ========== TOOL CALL RENDERING ==========
+
+function renderToolChain(toolCalls) {
+    if (!toolCalls || toolCalls.length === 0) return '';
+
+    let html = '';
+    toolCalls.forEach((tool, idx) => {
+        html += renderToolCall(tool, idx);
+    });
+    return html;
 }
 
 function renderToolCall(tool, idx) {
@@ -222,53 +403,92 @@ function renderToolCall(tool, idx) {
         ? tool.function.arguments
         : JSON.stringify(tool.function.arguments, null, 2);
 
+    const hasResult = tool.result !== undefined && tool.result !== null;
+    const resultHtml = hasResult ? renderToolResult(tool.result, tool.success) : '';
+
     return `
-        <div class="tool-call">
-            <div class="tool-call-header">
+        <div class="tool-call" data-tool-index="${idx}">
+            <div class="tool-call-header ${hasResult ? '' : 'expanded'}">
                 <span class="toggle-icon">▶</span>
                 <span class="tool-name">${escapeHtml(tool.function.name)}</span>
             </div>
             <div class="tool-args">${escapeHtml(args)}</div>
+            ${resultHtml}
         </div>
     `;
 }
 
-function renderToolResult(toolName, result, success) {
+function renderToolResult(result, success) {
+    const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+    return `
+        <div class="tool-result ${success ? 'success' : 'error'}">
+            <div class="tool-result-header ${success ? 'success' : 'error'}">
+                ${success ? '✓' : '✗'} 执行结果
+            </div>
+            <div>${escapeHtml(resultText.substring(0, 500))}${resultText.length > 500 ? '...' : ''}</div>
+        </div>
+    `;
+}
+
+function renderToolResultLegacy(toolName, result, success) {
     const toolCalls = els.messages.querySelectorAll('.tool-call');
     const lastTool = toolCalls[toolCalls.length - 1];
     if (!lastTool) return;
 
+    // 避免重复渲染 result
+    if (lastTool.querySelector('.tool-result')) return;
+
+    const resultText = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
     const resultDiv = document.createElement('div');
     resultDiv.className = `tool-result ${success ? 'success' : 'error'}`;
     resultDiv.innerHTML = `
-        <div style="font-weight:600;margin-bottom:4px;">${success ? '✓' : '✗'} ${escapeHtml(toolName)}</div>
-        <pre style="margin:0;white-space:pre-wrap;word-break:break-all;">${escapeHtml(result.substring(0, 500))}${result.length > 500 ? '...' : ''}</pre>
+        <div class="tool-result-header ${success ? 'success' : 'error'}">
+            ${success ? '✓' : '✗'} 执行结果
+        </div>
+        <div>${escapeHtml(resultText).substring(0, 500)}${resultText.length > 500 ? '...' : ''}</div>
     `;
 
     lastTool.appendChild(resultDiv);
+
+    // 绑定 toggle：点击 header 展开/折叠 result
+    const header = lastTool.querySelector('.tool-call-header');
+    if (header) {
+        // 移除之前的 expanded 类（流式时默认展开的）
+        header.classList.remove('expanded');
+        header.addEventListener('click', () => {
+            header.classList.toggle('expanded');
+            resultDiv.classList.toggle('visible');
+        });
+    }
+
     scrollToBottom();
 }
+
+// ========== THINKING / LOADING ==========
 
 function showThinking(step, maxSteps, content) {
     const existing = document.getElementById('thinking-indicator');
     if (existing) existing.remove();
 
+    const inner = els.messages.querySelector('.messages-inner');
+    if (!inner) return;
+
     const div = document.createElement('div');
     div.id = 'thinking-indicator';
-    div.className = 'message system';
+    div.className = 'message assistant';
     div.innerHTML = `
-        <div class="message-avatar">⏳</div>
-        <div class="message-content">
+        <div class="message-avatar">🤖</div>
+        <div class="message-content-wrapper">
             <div class="thinking">
                 <div class="thinking-dots">
                     <span></span><span></span><span></span>
                 </div>
-                <span>步骤 ${step}/${maxSteps} · ${escapeHtml(content)}</span>
+                <span>${content || '思考中...'}</span>
             </div>
         </div>
     `;
 
-    els.messages.appendChild(div);
+    inner.appendChild(div);
     scrollToBottom();
 }
 
@@ -300,8 +520,6 @@ async function sendMessage() {
 function startStream(message) {
     isStreaming = true;
     els.btnSend.disabled = true;
-
-    // 使用 POST 方式启动 SSE（支持长消息）
     startStreamPost(message);
 }
 
@@ -336,16 +554,14 @@ async function startStreamPost(message) {
 
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop(); // 保留未完成的行
+            buffer = lines.pop();
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
                 if (!line) continue;
 
-                // 解析 SSE 格式
                 if (line.startsWith('event:')) {
                     const eventType = line.substring(6).trim();
-                    // 读取下一行的 data
                     if (i + 1 < lines.length && lines[i + 1].startsWith('data:')) {
                         const dataStr = lines[i + 1].substring(5).trim();
                         i++;
@@ -365,7 +581,6 @@ async function startStreamPost(message) {
             }
         }
 
-        // 流结束后，如果没有 assistant 消息但有内容，确保显示
         if (assistantContent && !currentAssistantMsg) {
             appendMessage('assistant', assistantContent);
         }
@@ -391,24 +606,19 @@ function updateOrCreateAssistantMsg(content, currentMsg) {
     }
 
     const contentDiv = currentMsg.querySelector('.message-content');
-    const textNodes = Array.from(contentDiv.childNodes).filter(n =>
-        n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && !n.classList.contains('tool-call'))
-    );
+    contentDiv.innerHTML = formatContent(content);
 
-    if (textNodes.length === 0) {
-        const p = document.createElement('p');
-        p.textContent = content;
-        contentDiv.insertBefore(p, contentDiv.firstChild);
-    } else {
-        const first = textNodes[0];
-        if (first.tagName === 'P') {
-            first.textContent = content;
-        } else {
-            const p = document.createElement('p');
-            p.textContent = content;
-            contentDiv.insertBefore(p, contentDiv.firstChild);
-        }
-    }
+    // Re-bind code copy buttons
+    currentMsg.querySelectorAll('.code-copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const code = btn.closest('.code-block').querySelector('code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                btn.textContent = '✓ 已复制';
+                setTimeout(() => btn.textContent = '📋 复制', 2000);
+            });
+        });
+    });
 
     scrollToBottom();
     return currentMsg;
@@ -436,14 +646,10 @@ function handleSSEEvent(eventType, data) {
                 function: { name: data.tool_name, arguments: data.tool_args }
             }, data.tool_index);
             currentAssistantMsgEl.querySelector('.message-content').appendChild(toolDiv);
-            toolDiv.querySelector('.tool-call-header').addEventListener('click', function() {
-                this.classList.toggle('expanded');
-                this.nextElementSibling.classList.toggle('visible');
-            });
             scrollToBottom();
             break;
         case 'tool_result':
-            renderToolResult(data.tool_name, data.result, data.success);
+            renderToolResultLegacy(data.tool_name, data.result, data.success);
             break;
         case 'complete':
             hideThinking();
@@ -469,26 +675,51 @@ function handleSSEEvent(eventType, data) {
     }
 }
 
-function handleStreamEvent(data, currentAssistantMsg) {
-    // 通用事件处理（备用）
-}
-
 // ========== 工具函数 ==========
 
 function formatContent(text) {
     if (!text) return '';
 
-    // 简单的 Markdown 支持
     let html = escapeHtml(text);
 
-    // 代码块
-    html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Code blocks with language
+    html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        const language = lang || 'text';
+        return `
+            <div class="code-block">
+                <div class="code-header">
+                    <span class="code-lang">${language}</span>
+                    <button class="code-copy-btn">📋 复制</button>
+                </div>
+                <pre><code>${code.trim()}</code></pre>
+            </div>
+        `;
+    });
 
-    // 行内代码
+    // Inline code
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-    // 段落
-    html = html.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Italic
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+    // Headers
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+    // Lists
+    html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+    // Paragraphs
+    html = html.split('\n\n').map(p => {
+        p = p.trim();
+        if (!p || p.startsWith('<')) return p;
+        return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+    }).join('');
 
     return html;
 }
@@ -504,13 +735,21 @@ function scrollToBottom() {
 }
 
 function showError(message) {
+    let inner = els.messages.querySelector('.messages-inner');
+    if (!inner) {
+        els.messages.innerHTML = '<div class="messages-inner"></div>';
+        inner = els.messages.querySelector('.messages-inner');
+    }
+
     const div = document.createElement('div');
     div.className = 'message system';
     div.innerHTML = `
         <div class="message-avatar">⚠️</div>
-        <div class="message-content" style="color:var(--error)">${escapeHtml(message)}</div>
+        <div class="message-content-wrapper">
+            <div class="message-content" style="color:var(--error)">${escapeHtml(message)}</div>
+        </div>
     `;
-    els.messages.appendChild(div);
+    inner.appendChild(div);
     scrollToBottom();
 }
 

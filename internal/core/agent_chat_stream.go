@@ -82,14 +82,15 @@ func (a *Agent) ChatStream(sessionID, input string, messages *[]llm.Message, han
 			ToolTotal: len(resp.Tool),
 		})
 
-		// 构建 Assistant 消息
-		*messages = append(*messages, llm.Message{
-			Role:      "assistant",
-			Content:   resp.Reply,
-			ToolCalls: resp.Tool,
-		})
+		// 构建 Assistant 消息（先不保存 tool_calls，等执行完再更新）
+		assistantMsg := llm.Message{
+			Role:    "assistant",
+			Content: resp.Reply,
+		}
+		*messages = append(*messages, assistantMsg)
 
 		// 执行所有工具调用
+		executedTools := make([]llm.ToolCall, 0, len(resp.Tool))
 		for i, toolCall := range resp.Tool {
 			// 发送工具调用事件
 			handler.OnEvent(StreamEvent{
@@ -145,6 +146,21 @@ func (a *Agent) ChatStream(sessionID, input string, messages *[]llm.Message, han
 				Success:  success,
 			})
 
+			// 收集工具调用结果
+			executedTools = append(executedTools, llm.ToolCall{
+				ID:   toolCall.ID,
+				Type: toolCall.Type,
+				Function: struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				}{
+					Name:      toolCall.Function.Name,
+					Arguments: toolCall.Function.Arguments,
+				},
+				Result:  output,
+				Success: success,
+			})
+
 			// 收集结果
 			*messages = append(*messages, llm.Message{
 				Role:       "tool",
@@ -152,6 +168,12 @@ func (a *Agent) ChatStream(sessionID, input string, messages *[]llm.Message, han
 				Name:       toolCall.Function.Name,
 				Content:    output,
 			})
+		}
+
+		// 更新 assistant 消息，添加 tool_calls
+		lastIdx := len(*messages) - len(executedTools) - 1
+		if lastIdx >= 0 && (*messages)[lastIdx].Role == "assistant" {
+			(*messages)[lastIdx].ToolCalls = executedTools
 		}
 	}
 

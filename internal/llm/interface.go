@@ -17,6 +17,8 @@ type ToolCall struct {
 		Name      string `json:"name"`
 		Arguments string `json:"arguments"`
 	} `json:"function"`
+	Result  string `json:"result,omitempty"`  // 执行结果
+	Success bool   `json:"success,omitempty"` // 是否成功
 }
 
 // Response LLM 响应

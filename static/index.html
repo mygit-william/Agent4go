@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>静态文件示例</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        p {
+            line-height: 1.6;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="content">
+        <h1>📁 静态文件服务</h1>
+        <p>这是一个通过 Go HTTP 服务器提供的静态文件示例。</p>
+        <p>访问路径: <code>/static/index.html</code></p>
+        <p>这个文件位于服务器的 <code>./static/</code> 目录中。</p>
+    </div>
+</body>
+</html>

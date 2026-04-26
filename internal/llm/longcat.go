@@ -83,6 +83,8 @@ func (a *LongcatAdapter) Chat(messages *[]Message, tools []ToolDefinition) (Resp
 	switch v := result.Choices[0].Message.Content.(type) {
 	case string:
 		reply = v
+	case nil:
+		reply = ""
 	default:
 		data, _ := json.Marshal(v)
 		reply = string(data)
